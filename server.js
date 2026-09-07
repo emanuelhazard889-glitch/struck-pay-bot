@@ -10,15 +10,10 @@ const PROOF_CHANNEL = '@proof_struck';
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// 2. MongoDB Schemas and Reset Code
+// 2. MongoDB Schemas (Reset code ተወግዷል!)
 mongoose.connect(MONGO_URL).then(async () => {
     console.log("Database Connected Successfully");
-    
-    await User.deleteMany({});
-    await Channel.deleteMany({});
-    await Config.updateOne({ key: "main" }, { totalWithdrawn: 0, refReward: 2 }, { upsert: true });
-    console.log("All users and data have been completely reset!");
-
+    await Config.updateOne({ key: "main" }, { refReward: 2 }, { upsert: true });
 }).catch(err => console.log(err));
 
 const User = mongoose.model('User', { 
@@ -44,7 +39,12 @@ const Config = mongoose.model('Config', {
 // State Management
 const userStates = {};
 let botUsername = '';
-bot.getMe().then(me => botUsername = me.username);
+
+// Bot Username በቅድሚያ ማምጣት
+bot.getMe().then(me => {
+    botUsername = me.username;
+    console.log(`Bot username set to: @${botUsername}`);
+});
 
 // Configuration Initialization 
 async function initConfig() {
@@ -56,7 +56,7 @@ initConfig();
 // --- 3. Start and Force Join Logic ---
 bot.onText(/\/start(.*)/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const text = match[1].trim();
+    const text = match[1] ? match[1].trim() : "";
     const firstName = msg.from.first_name || "User";
     
     let referrer = null;
@@ -67,6 +67,10 @@ bot.onText(/\/start(.*)/, async (msg, match) => {
     let user = await User.findOne({ userId: chatId });
     if (!user) {
         user = await User.create({ userId: chatId, referrer: referrer });
+    } else if (!user.verified && !user.referrer && referrer) {
+        // ገና ሳይረጋገጥ በሪፈራል ሊንክ ከተመለሰ
+        user.referrer = referrer;
+        await user.save();
     }
 
     sendForceJoin(chatId, firstName);
@@ -278,6 +282,10 @@ bot.on('message', async (msg) => {
         }
 
         if (text === "🟥 Referral") {
+            if (!botUsername) {
+                const me = await bot.getMe();
+                botUsername = me.username;
+            }
             const refLink = `https://t.me/${botUsername}?start=${chatId}`;
             return bot.sendPhoto(chatId, "12345.jpg", {
                 caption: `Referral Link:\n${refLink}\n\nEarn ${conf.refReward} Birr for each referral (when they join channels and verify).\nTotal users joined via you: ${user.refs}`
@@ -301,6 +309,10 @@ bot.on('message', async (msg) => {
         conf.totalWithdrawn += amount;
         await conf.save();
 
+        if (!botUsername) {
+            const me = await bot.getMe();
+            botUsername = me.username;
+        }
         const refLink = `https://t.me/${botUsername}?start=${chatId}`;
         const caption = `ID: ${chatId}\n\nAccount or wallet: ${user.wallet}\n\nAmount: ${amount}\n\nName: Struck Pay Bot\n\nStatus: checking\n\nReferral link:\n${refLink}`;
         
