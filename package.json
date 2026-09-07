@@ -1,0 +1,13 @@
+{
+  "name": "struck-pay-bot",
+  "version": "1.0.0",
+  "description": "Telegram Earning and Payment Bot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "mongoose": "^8.0.0",
+    "node-telegram-bot-api": "^0.65.0"
+  }
+}
